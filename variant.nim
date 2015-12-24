@@ -8,21 +8,21 @@ var typeIds {.compileTime.} = initTable[int, string]()
 proc mangledName(t: NimNode): string =
     case t.kind
     of nnkSym:
-        let tt = getType(t)
-        if tt.kind == nnkBracketExpr and tt.len == 2 and $tt[0] == "typeDesc" and
-                (tt[1].kind != nnkSym or $tt[1] != $t):
-            result = mangledName(tt[1])
-        else:
-            let impl = getImpl(t.symbol)
-            case impl.kind
-            of nnkNilLit:
-                result = $t.symbol
-            of nnkTypeDef:
-                result = mangledName(impl[2])
+        let impl = getImpl(t.symbol)
+        case impl.kind
+        of nnkNilLit:
+            let tt = getType(t)
+            if tt.kind == nnkBracketExpr and tt.len == 2 and $tt[0] == "typeDesc" and
+                    (tt[1].kind != nnkSym or $tt[1] != $t):
+                result = mangledName(tt[1])
             else:
-                echo "Unknown sym typ"
-                echo treeRepr(t)
-                assert(false)
+                result = $t.symbol
+        of nnkTypeDef:
+            result = mangledName(impl[2])
+        else:
+            echo "Unknown sym typ"
+            echo treeRepr(t)
+            assert(false)
     of nnkBracketExpr:
         var tt : NimNode = nil
         case $t[0]
@@ -87,7 +87,7 @@ macro getTypeId*(t: typed): TypeId =
             break
     return h
 
-const debugVariantTypes = defined(variantDebugTypes) or true
+const debugVariantTypes = defined(variantDebugTypes)
 
 type Variant* = object
     tn: TypeId
@@ -153,14 +153,17 @@ macro match*(v: Variant, body: untyped): stmt =
             result.add(newNimNode(nnkElse).add(c[1]))
 
 when isMainModule:
-    type Test = object
+    type Obj = object
+        a: int
+
+    type RefObj = ref object
         a: int
 
     type DistinctInt = distinct int
 
-    type Test3 = seq[int]
-    type pint = distinct ptr int
-    type pint2 = pint
+    type SeqOfInt = seq[int]
+    type IntPtr = distinct ptr int
+    type IntPtr2 = IntPtr
     type GenericTest[T] = seq[T]
     type ConcreteTest = GenericTest[int]
 
@@ -169,15 +172,16 @@ when isMainModule:
         doAssert getMangledName(DistinctInt) == "distinct[int]"
         doAssert getMangledName(float) == "float"
         doAssert getMangledName(seq[int]) == "seq[int]"
-        doAssert getMangledName(Test3) == "seq[int]"
+        doAssert getMangledName(SeqOfInt) == "seq[int]"
         doAssert getMangledName(ptr int) == "ptr[int]"
-        doAssert getMangledName(pint) == "distinct[ptr[int]]"
-        doAssert getMangledName(pint2) == "distinct[ptr[int]]"
+        doAssert getMangledName(IntPtr) == "distinct[ptr[int]]"
+        doAssert getMangledName(IntPtr2) == "distinct[ptr[int]]"
         doAssert getMangledName(GenericTest[float]) == "seq[float]"
         doAssert getMangledName(ConcreteTest) == "seq[int]"
         doAssert getMangledName(tuple[x, y: int]) == "tuple[int,int]"
         doAssert getMangledName(tuple[x: int, y: float]) == "tuple[int,float]"
-        doAssert getMangledName(Test).startsWith("object[variant.nim(")
+        doAssert getMangledName(Obj).startsWith("object[variant.nim(")
+        doAssert getMangledName(RefObj).startsWith("ref[object[variant.nim(")
         doAssert getMangledName(array[3, float]) == "array[range[0,2],float]"
         doAssert getMangledName(array[0..2, float]) == "array[range[0,2],float]"
 
@@ -185,12 +189,18 @@ when isMainModule:
         var v = newVariant(5)
         doAssert v.ofType(int)
         doAssert v.get(int) == 5
+        when debugVariantTypes:
+            doAssert v.mangledName == "int"
         v = newVariant(3.0)
         doAssert v.ofType(float)
         doAssert v.get(float) == 3.0
+        when debugVariantTypes:
+            doAssert v.mangledName == "float"
         v = newVariant(@[1, 2, 3])
         doAssert v.ofType(seq[int])
         doAssert v.get(seq[int])[1] == 2
+        when debugVariantTypes:
+            doAssert v.mangledName == "seq[int]"
 
     block: # Test match
         var v = newVariant(@[1, 2, 3])
