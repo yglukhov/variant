@@ -5,76 +5,59 @@ import strutils
 
 var typeIds {.compileTime.} = initTable[int, string]()
 
-proc mangledName(t: NimNode): string =
+template push(s, v: NimNode) = s.add(v)
+
+proc pop(s: NimNode): NimNode {.discardable.} =
+    result = s[^1]
+    s.del(s.len - 1)
+
+proc getLastSym(s: NimNode): NimNode =
+    var i = s.len - 1
+    while i >= 0:
+        if s[i].kind == nnkSym: return s[i]
+        dec i
+
+proc mangledName(t: NimNode, parents: NimNode): string =
     case t.kind
-    of nnkSym:
-        let impl = getImpl(t.symbol)
-        case impl.kind
-        of nnkNilLit:
-            let tt = getType(t)
-            if tt.kind == nnkSym and $tt == $t:
-                result = $t
-            else:
-                result = mangledName(tt)
-        of nnkTypeDef:
-            result = mangledName(impl[2])
+    of nnkBracketExpr:
+        case $t[0]
+        of "seq", "ref", "ptr", "distinct", "tuple", "array", "proc":
+            result = $t[0] & "["
+            for i in 1 ..< t.len:
+                parents.push(t[i])
+                if i != 1: result &= ","
+                result &= mangledName(getType(t[i]), parents)
+                parents.pop()
+            result &= "]"
+        of "range":
+            result = "range[" & $t[1].intVal & "," & $t[2].intVal & "]"
         else:
-            echo "Unknown sym typ"
             echo treeRepr(t)
             assert(false)
-    of nnkBracketExpr:
-        var tt : NimNode = nil
-        case $t[0]
-        of "typeDesc":
-            tt = t[1]
-        of "range":
-            result = "range[" & mangledName(t[1]) & "," & mangledName(t[2]) & "]"
-        else:
-            tt = getType(t)
-            if tt.kind == nnkBracketExpr and $tt[0] == "typeDesc":
-                result = mangledName(tt)
-                tt = nil
-        if tt != nil:
-            if tt.kind == nnkSym:
-                result = $tt
-            else:
-                case $tt[0]
-                of "seq":
-                    result = "seq[" & mangledName(tt[1]) & "]"
-                of "array":
-                    result = "array[" & mangledName(tt[1]) & "," & mangledName(tt[2]) & "]"
-                of "ref":
-                    result = "ref[" & mangledName(tt[1]) & "]"
-                of "ptr":
-                    result = "ptr[" & mangledName(tt[1]) & "]"
-                else:
-                    echo treeRepr(t)
-                    assert(false)
-
-    of nnkPtrTy:
-        result = "ptr[" & mangledName(t[0]) & "]"
-    of nnkRefTy:
-        result = "ref[" & mangledName(t[0]) & "]"
-    of nnkDistinctTy:
-        result = "distinct[" & mangledName(t[0]) & "]"
-    of nnkObjectTy:
-        result = "object[" & t.lineinfo & "]"
-    of nnkTupleTy:
+    of nnkSym:
         let tt = getType(t)
-        result = "tuple["
-        for i in 1 ..< tt[1].len:
-            if i != 1: result &= ","
-            result &= mangledName(tt[1][i])
-        result &= "]"
-    of nnkIntLit:
-        result = $t.intVal
+        if tt.kind == nnkSym and $tt == $t:
+            result = $t
+        else:
+            parents.push(tt)
+            result = mangledName(tt, parents)
+            parents.pop()
+    of nnkObjectTy:
+        let ls = getLastSym(parents)
+        if ls.isNil:
+            echo "NO PARENT SYM!"
+            echo "STACK: ", treeRepr(parents)
+        result = "object[" & $ls & "]"
     else:
-        echo "Unknown typ"
-        echo treeRepr(t)
-        assert(false)
+        parents.push(t)
+        result = mangledName(getType(t), parents)
+        parents.pop()
 
-macro getMangledName*(t: typed): string =
-    mangledName(t)
+proc mangledName(t: NimNode): string =
+    var parents = newStmtList(t)
+    mangledName(getType(t)[1], parents)
+
+macro getMangledName(t: typed): string = mangledName(t)
 
 when defined(js):
     type TypeId* = int64
@@ -110,6 +93,8 @@ proc needsCopy[T](): bool {.compileTime.} =
         return false
     else:
         return true
+
+proc newVariant*(): Variant = discard
 
 proc newVariant*[T](val: T): Variant =
     result.tn = getTypeId(T)
@@ -173,11 +158,7 @@ when isMainModule:
     type GenericTest[T] = seq[T]
     type ConcreteTest = GenericTest[int]
 
-#    macro dt(t: typed): stmt =
-#        echo treeRepr(t)
-#        echo treeRepr(getType(t))
-
-#    dt(Obj)
+    type GenericTupleWithClosures[T] = tuple[setter: proc(v: T), getter: proc(): T]
 
     block: # Test mangling
         doAssert getMangledName(int) == "int"
@@ -192,10 +173,11 @@ when isMainModule:
         doAssert getMangledName(ConcreteTest) == "seq[int]"
         doAssert getMangledName(tuple[x, y: int]) == "tuple[int,int]"
         doAssert getMangledName(tuple[x: int, y: float]) == "tuple[int,float]"
-        doAssert getMangledName(Obj).startsWith("object[variant.nim(")
-        doAssert getMangledName(RefObj).startsWith("ref[object[variant.nim(")
+        doAssert getMangledName(Obj) == "object[Obj]"
+        doAssert getMangledName(RefObj) == "ref[object[RefObj:ObjectType]]"
         doAssert getMangledName(array[3, float]) == "array[range[0,2],float]"
         doAssert getMangledName(array[0..2, float]) == "array[range[0,2],float]"
+        doAssert getMangledName(GenericTupleWithClosures[int]) == "tuple[proc[void,int],proc[int]]"
 
     block: # Test variant
         var v = newVariant(5)
