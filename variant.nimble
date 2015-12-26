@@ -8,3 +8,6 @@ license       = "MIT"
 # Dependencies
 
 requires "nim >= 0.12.1"
+
+task tests, "Run tests":
+    setCommand "c", "variant.nim"

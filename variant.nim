@@ -12,11 +12,10 @@ proc mangledName(t: NimNode): string =
         case impl.kind
         of nnkNilLit:
             let tt = getType(t)
-            if tt.kind == nnkBracketExpr and tt.len == 2 and $tt[0] == "typeDesc" and
-                    (tt[1].kind != nnkSym or $tt[1] != $t):
-                result = mangledName(tt[1])
+            if tt.kind == nnkSym and $tt == $t:
+                result = $t
             else:
-                result = $t.symbol
+                result = mangledName(tt)
         of nnkTypeDef:
             result = mangledName(impl[2])
         else:
@@ -36,14 +35,21 @@ proc mangledName(t: NimNode): string =
                 result = mangledName(tt)
                 tt = nil
         if tt != nil:
-            case $tt[0]
-            of "seq":
-                result = "seq[" & mangledName(tt[1]) & "]"
-            of "array":
-                result = "array[" & mangledName(tt[1]) & "," & mangledName(tt[2]) & "]"
+            if tt.kind == nnkSym:
+                result = $tt
             else:
-                echo treeRepr(t)
-                assert(false)
+                case $tt[0]
+                of "seq":
+                    result = "seq[" & mangledName(tt[1]) & "]"
+                of "array":
+                    result = "array[" & mangledName(tt[1]) & "," & mangledName(tt[2]) & "]"
+                of "ref":
+                    result = "ref[" & mangledName(tt[1]) & "]"
+                of "ptr":
+                    result = "ptr[" & mangledName(tt[1]) & "]"
+                else:
+                    echo treeRepr(t)
+                    assert(false)
 
     of nnkPtrTy:
         result = "ptr[" & mangledName(t[0]) & "]"
@@ -167,6 +173,12 @@ when isMainModule:
     type GenericTest[T] = seq[T]
     type ConcreteTest = GenericTest[int]
 
+#    macro dt(t: typed): stmt =
+#        echo treeRepr(t)
+#        echo treeRepr(getType(t))
+
+#    dt(Obj)
+
     block: # Test mangling
         doAssert getMangledName(int) == "int"
         doAssert getMangledName(DistinctInt) == "distinct[int]"
@@ -201,6 +213,10 @@ when isMainModule:
         doAssert v.get(seq[int])[1] == 2
         when debugVariantTypes:
             doAssert v.mangledName == "seq[int]"
+
+        v = newVariant(RefObj.new())
+        when debugVariantTypes:
+            doAssert v.mangledName == getMangledName(RefObj)
 
     block: # Test match
         var v = newVariant(@[1, 2, 3])
