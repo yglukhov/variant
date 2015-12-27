@@ -21,7 +21,7 @@ Matching:
 ```nim
 var v = newVariant(@[1, 2, 3])
 assert v.ofType(seq[int])
-variant case v as u
+variantMatch case v as u
 of int:
     echo "u is int: ", u
 of seq[int]:
