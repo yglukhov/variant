@@ -1,4 +1,4 @@
-# variant
+# variant [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble_js.png)](https://github.com/yglukhov/nimble-tag)
 Variant type and type matching for Nim
 
 ```nim
@@ -20,7 +20,7 @@ assert v.get(seq[int])[1] == 2
 Matching:
 ```nim
 var v = newVariant(@[1, 2, 3])
-doAssert v.ofType(seq[int])
+assert v.ofType(seq[int])
 match v:
     like int as i:
         echo "v is int: ", i
