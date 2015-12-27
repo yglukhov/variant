@@ -21,7 +21,7 @@ proc mangledName(t: NimNode, parents: NimNode): string =
     case t.kind
     of nnkBracketExpr:
         case $t[0]
-        of "seq", "ref", "ptr", "distinct", "tuple", "array", "proc":
+        of "seq", "ref", "ptr", "tuple", "array", "proc":
             result = $t[0] & "["
             for i in 1 ..< t.len:
                 parents.push(t[i])
@@ -29,6 +29,10 @@ proc mangledName(t: NimNode, parents: NimNode): string =
                 result &= mangledName(getType(t[i]), parents)
                 parents.pop()
             result &= "]"
+        of "distinct":
+            parents.push(t[1])
+            result = "distinct[" & mangledName(getType(t[1]), parents) & ":" & t.lineinfo & "]"
+            parents.pop()
         of "range":
             result = "range[" & $t[1].intVal & "," & $t[2].intVal & "]"
         else:
@@ -101,8 +105,9 @@ proc newVariant*[T](val: T): Variant =
     when debugVariantTypes:
         result.mangledName = getMangledName(T)
     when defined(js):
+        var valCopy = val
         {.emit: """
-        `result`.val = `val`;
+        `result`.val = `valCopy`;
         """.}
     else:
         when needsCopy[T]():
@@ -151,6 +156,7 @@ when isMainModule:
         a: int
 
     type DistinctInt = distinct int
+    type DistinctInt2 = distinct int
 
     type SeqOfInt = seq[int]
     type IntPtr = distinct ptr int
@@ -162,13 +168,15 @@ when isMainModule:
 
     block: # Test mangling
         doAssert getMangledName(int) == "int"
-        doAssert getMangledName(DistinctInt) == "distinct[int]"
+        doAssert getMangledName(DistinctInt).startsWith("distinct[int:variant.nim(")
+        doAssert getMangledName(DistinctInt2).startsWith("distinct[int:variant.nim(")
+        #doAssert getMangledName(DistinctInt) != getMangledName(DistinctInt2) # Depends on Nim pr 3667
         doAssert getMangledName(float) == "float"
         doAssert getMangledName(seq[int]) == "seq[int]"
         doAssert getMangledName(SeqOfInt) == "seq[int]"
         doAssert getMangledName(ptr int) == "ptr[int]"
-        doAssert getMangledName(IntPtr) == "distinct[ptr[int]]"
-        doAssert getMangledName(IntPtr2) == "distinct[ptr[int]]"
+        doAssert getMangledName(IntPtr).startsWith("distinct[ptr[int]:variant.nim(")
+        doAssert getMangledName(IntPtr2) == getMangledName(IntPtr)
         doAssert getMangledName(GenericTest[float]) == "seq[float]"
         doAssert getMangledName(ConcreteTest) == "seq[int]"
         doAssert getMangledName(tuple[x, y: int]) == "tuple[int,int]"
