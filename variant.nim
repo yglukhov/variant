@@ -202,14 +202,14 @@ when isMainModule:
 
     block: # Test mangling
         doAssert getMangledName(int) == "int"
-        doAssert getMangledName(DistinctInt).startsWith("distinct[int:variant.nim(")
-        doAssert getMangledName(DistinctInt2).startsWith("distinct[int:variant.nim(")
+        doAssert getMangledName(DistinctInt).startsWith("distinct[int:")
+        doAssert getMangledName(DistinctInt2).startsWith("distinct[int:")
         #doAssert getMangledName(DistinctInt) != getMangledName(DistinctInt2) # Depends on Nim pr 3667
         doAssert getMangledName(float) == "float"
         doAssert getMangledName(seq[int]) == "seq[int]"
         doAssert getMangledName(SeqOfInt) == "seq[int]"
         doAssert getMangledName(ptr int) == "ptr[int]"
-        doAssert getMangledName(IntPtr).startsWith("distinct[ptr[int]:variant.nim(")
+        doAssert getMangledName(IntPtr).startsWith("distinct[ptr[int]:")
         doAssert getMangledName(IntPtr2) == getMangledName(IntPtr)
         doAssert getMangledName(GenericTest[float]) == "seq[float]"
         doAssert getMangledName(ConcreteTest) == "seq[int]"
