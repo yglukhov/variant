@@ -135,7 +135,7 @@ template empty*(v: Variant): bool = v.tn != 0
 
 template getTn(v: Variant): TypeId = v.tn
 
-macro variant*(body: untyped): stmt =
+macro variantMatch*(body: untyped): stmt =
     expectKind(body, nnkCaseStmt)
     var defaultUnpackSym : NimNode
     var variantNode = body[0]
@@ -245,19 +245,19 @@ when isMainModule:
     block: # Test match
         var v = newVariant(@[1, 2, 3])
         doAssert v.ofType(seq[int])
-        variant case v:
+        variantMatch case v:
             of int as i: doAssert(false and i == 0)
             of seq[int] as s: doAssert s[1] == 2
             else: doAssert false
 
-        variant case v as u
+        variantMatch case v as u
         of int: doAssert(false and u == 0)
         of seq[int]: doAssert(u[1] == 2)
         else: doAssert false
 
         v = newVariant(5.3)
         doAssert v.ofType(float)
-        variant case v:
+        variantMatch case v:
             of int as i: doAssert(false and i == 0)
             of float as f: doAssert f == 5.3
             else: doAssert false
