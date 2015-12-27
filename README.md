@@ -21,15 +21,15 @@ Matching:
 ```nim
 var v = newVariant(@[1, 2, 3])
 assert v.ofType(seq[int])
-match v:
-    like int as i:
-        echo "v is int: ", i
-    like seq[int] as s:
-        echo "v is seq[int]: ", s
-    like:
-        echo "dont know what v is"
+variant case v as u
+of int:
+    echo "u is int: ", u
+of seq[int]:
+    echo "u is seq[int]: ", u
+else:
+    echo "dont know what v is"
 ```
 Will output:
 ```
-v is seq[int]: @[1, 2, 3]
+u is seq[int]: @[1, 2, 3]
 ```

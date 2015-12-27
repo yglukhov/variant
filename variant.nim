@@ -88,8 +88,6 @@ type Variant* = object
     when debugVariantTypes:
         mangledName*: string
 
-template getTn(v: Variant): TypeId = v.tn
-
 template ofType*(v: Variant, t: typedesc): bool = v.tn == getTypeId(t)
 
 proc needsCopy[T](): bool {.compileTime.} =
@@ -105,7 +103,7 @@ proc newVariant*[T](val: T): Variant =
     when debugVariantTypes:
         result.mangledName = getMangledName(T)
     when defined(js):
-        var valCopy = val
+        var valCopy {.hint[XDeclaredButNotUsed]: off.} = val
         {.emit: """
         `result`.val = `valCopy`;
         """.}
@@ -135,7 +133,43 @@ proc get*(v: Variant, T: typedesc): T =
 
 template empty*(v: Variant): bool = v.tn != 0
 
-macro match*(v: Variant, body: untyped): stmt =
+template getTn(v: Variant): TypeId = v.tn
+
+macro variant*(body: untyped): stmt =
+    expectKind(body, nnkCaseStmt)
+    var defaultUnpackSym : NimNode
+    var variantNode = body[0]
+    if body[0].kind == nnkInfix and $body[0][0] == "as":
+        variantNode = body[0][1]
+        defaultUnpackSym = body[0][2]
+
+    result = newNimNode(nnkCaseStmt)
+    result.add(newCall(bindSym "getTn", variantNode))
+
+    for i in 1 ..< body.len:
+        let c = body[i]
+        case c.kind
+        of nnkOfBranch:
+            expectLen(c, 2)
+            var unpackSym = defaultUnpackSym
+            var typeNode = c[0]
+            if c[0].kind == nnkInfix and $c[0][0] == "as":
+                typeNode = c[0][1]
+                unpackSym = c[0][2]
+            expectKind(unpackSym, nnkIdent)
+
+            result.add(newNimNode(nnkOfBranch).add(
+                newCall(bindSym "getTypeId", typeNode),
+                newStmtList(
+                    newLetStmt(unpackSym, newCall(bindSym "get", variantNode, typeNode)),
+                    c[1]))
+                )
+        of nnkElse:
+            result.add(c)
+        else:
+            error "Unexpected node type in variant case: " & c.lineinfo
+
+macro match*(v: Variant, body: untyped): stmt {.deprecated.} =
     result = newNimNode(nnkCaseStmt)
     result.add(newCall(bindSym "getTn", v))
     for c in body:
@@ -211,14 +245,19 @@ when isMainModule:
     block: # Test match
         var v = newVariant(@[1, 2, 3])
         doAssert v.ofType(seq[int])
-        match v:
-            like int as i: doAssert(false and i == 0)
-            like seq[int] as s: doAssert s[1] == 2
-            like: doAssert false
+        variant case v:
+            of int as i: doAssert(false and i == 0)
+            of seq[int] as s: doAssert s[1] == 2
+            else: doAssert false
+
+        variant case v as u
+        of int: doAssert(false and u == 0)
+        of seq[int]: doAssert(u[1] == 2)
+        else: doAssert false
 
         v = newVariant(5.3)
         doAssert v.ofType(float)
-        match v:
-            like int as i: doAssert(false and i == 0)
-            like float as f: doAssert f == 5.3
-            like: doAssert false
+        variant case v:
+            of int as i: doAssert(false and i == 0)
+            of float as f: doAssert f == 5.3
+            else: doAssert false
