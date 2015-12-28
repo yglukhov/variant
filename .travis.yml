@@ -4,4 +4,5 @@ services:
 before_install:
   - docker pull yglukhov/devel
 script:
+  - docker run -v "$(pwd):/project" -w /project yglukhov/devel nim --version
   - docker run -v "$(pwd):/project" -w /project yglukhov/devel nimble tests
