@@ -63,18 +63,15 @@ proc mangledName(t: NimNode): string =
 
 macro getMangledName(t: typed): string = mangledName(t)
 
-when defined(js):
-    type TypeId* = int64
-else:
-    type TypeId* = int
+type TypeId* = Hash
 
 macro getTypeId*(t: typed): TypeId =
     let name = mangledName(t)
-    var h = hash(name)
+    var h = hash(name) mod 2147483645
     while true:
         if h in typeIds:
             if typeIds[h] == name: break
-            h = h *% 2
+            h = (h *% 2) mod 2147483645
         else:
             typeIds[h] = name
             break
