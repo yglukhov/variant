@@ -80,12 +80,12 @@ macro getTypeId*(t: typed): TypeId =
 const debugVariantTypes = defined(variantDebugTypes)
 
 type Variant* = object
-    tn: TypeId
+    typeId*: TypeId
     val {.exportc.}: pointer
     when debugVariantTypes:
         mangledName*: string
 
-template ofType*(v: Variant, t: typedesc): bool = v.tn == getTypeId(t)
+template ofType*(v: Variant, t: typedesc): bool = v.typeId == getTypeId(t)
 
 proc needsCopy[T](): bool {.compileTime.} =
     when T is ref | ptr | SomeInteger:
@@ -96,7 +96,7 @@ proc needsCopy[T](): bool {.compileTime.} =
 proc newVariant*(): Variant = discard
 
 proc newVariant*[T](val: T): Variant =
-    result.tn = getTypeId(T)
+    result.typeId = getTypeId(T)
     when debugVariantTypes:
         result.mangledName = getMangledName(T)
     when defined(js):
@@ -113,7 +113,7 @@ proc newVariant*[T](val: T): Variant =
             result.val = cast[pointer](val)
 
 proc get*(v: Variant, T: typedesc): T =
-    if getTypeId(T) != v.tn:
+    if getTypeId(T) != v.typeId:
         when debugVariantTypes:
             raise newException(Exception, "Wrong variant type: " & v.mangledName & ". Expected type: " & getMangledName(T))
         else:
@@ -128,9 +128,9 @@ proc get*(v: Variant, T: typedesc): T =
         else:
             result = cast[T](v.val)
 
-template empty*(v: Variant): bool = v.tn != 0
+template empty*(v: Variant): bool = v.typeId != 0
 
-template getTn(v: Variant): TypeId = v.tn
+template getTn(v: Variant): TypeId = v.typeId
 
 macro variantMatch*(body: untyped): stmt =
     expectKind(body, nnkCaseStmt)
