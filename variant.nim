@@ -128,7 +128,7 @@ proc get*(v: Variant, T: typedesc): T =
         else:
             result = cast[T](v.val)
 
-template empty*(v: Variant): bool = v.typeId != 0
+template isEmpty*(v: Variant): bool = v.typeId == 0
 
 template getTn(v: Variant): TypeId = v.typeId
 
