@@ -79,19 +79,31 @@ macro getTypeId*(t: typed): TypeId =
 
 const debugVariantTypes = defined(variantDebugTypes)
 
+proc canCastToPointer[T](): bool {.compileTime.} =
+    when compiles(
+        proc() =
+            const s = sizeof(T)):
+        return sizeof(T) <= sizeof(pointer) and compiles(
+            proc() =
+                var val: T
+                discard cast[pointer](val))
+    else:
+        return false
+
 type Variant* = object
     typeId*: TypeId
-    val {.exportc.}: pointer
+    when defined(js):
+        refval {.exportc.}: ref RootObj
+    else:
+        case isRef: bool
+        of true:
+            refval: ref RootObj
+        of false:
+            val: pointer
     when debugVariantTypes:
         mangledName*: string
 
 template ofType*(v: Variant, t: typedesc): bool = v.typeId == getTypeId(t)
-
-proc needsCopy[T](): bool {.compileTime.} =
-    when T is ref | ptr | SomeInteger:
-        return false
-    else:
-        return true
 
 proc newVariant*(): Variant = discard
 
@@ -100,17 +112,22 @@ proc newVariant*[T](val: T): Variant =
     when debugVariantTypes:
         result.mangledName = getMangledName(T)
     when defined(js):
-        var valCopy {.hint[XDeclaredButNotUsed]: off.} = val
-        {.emit: """
-        `result`.val = `valCopy`;
-        """.}
+        var valCopy = val
+        {.emit: "`result`.refval = `valCopy`;".}
     else:
-        when needsCopy[T]():
+        when T is ref:
+            # T is already a ref, so just store it as is
+            result.isRef = true
+            result.refval = cast[ref RootObj](val)
+        elif canCastToPointer[T]():
+            # T is good enough to be stored inside a pointer value. E.g.: ints, floats, enums, etc.
+            result.isRef = false
+            result.val = cast[pointer](val)
+        else:
             let pt = T.new()
             pt[] = val
-            result.val = cast[pointer](pt)
-        else:
-            result.val = cast[pointer](val)
+            result.isRef = true
+            result.refval = cast[ref RootObj](pt)
 
 proc get*(v: Variant, T: typedesc): T =
     if getTypeId(T) != v.typeId:
@@ -119,14 +136,15 @@ proc get*(v: Variant, T: typedesc): T =
         else:
             raise newException(Exception, "Wrong variant type. Compile with -d:variantDebugTypes switch to get more type information.")
     when defined(js):
-        {.emit: """
-        `result` = `v`.val;
-        """.}
+        {.emit: "`result` = `v`.refval;".}
     else:
-        when needsCopy[T]():
-            result = cast[ref T](v.val)[]
-        else:
+        when T is ref:
+            # T is already a ref, so just store it as is
+            result = cast[T](v.refval)
+        elif canCastToPointer[T]():
             result = cast[T](v.val)
+        else:
+            result = cast[ref T](v.refval)[]
 
 template isEmpty*(v: Variant): bool = v.typeId == 0
 
@@ -197,6 +215,13 @@ when isMainModule:
 
     type GenericTupleWithClosures[T] = tuple[setter: proc(v: T), getter: proc(): T]
 
+    # Int should be castable to pointer
+    const itop = canCastToPointer[int]()
+    doAssert(itop)
+    # Float should be castable to pointer
+    const ftop = canCastToPointer[int]()
+    doAssert(ftop)
+
     block: # Test mangling
         doAssert getMangledName(int) == "int"
         doAssert getMangledName(DistinctInt).startsWith("distinct[int:")
@@ -258,3 +283,10 @@ when isMainModule:
             of int as i: doAssert(false and i == 0)
             of float as f: doAssert f == 5.3
             else: doAssert false
+
+    block: # Test gneric types
+        type SomeGeneric[T] = tuple[a: T]
+        var sng : SomeGeneric[int]
+        sng.a = 5
+        let v = newVariant(sng)
+        doAssert(v.get(type(sng)).a == 5)
