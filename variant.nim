@@ -21,7 +21,7 @@ proc mangledName(t: NimNode, parents: NimNode): string =
     case t.kind
     of nnkBracketExpr:
         case $t[0]
-        of "seq", "ref", "ptr", "tuple", "array", "proc":
+        of "seq", "ref", "ptr", "tuple", "array", "proc", "set":
             result = $t[0] & "["
             for i in 1 ..< t.len:
                 parents.push(t[i])
@@ -52,6 +52,13 @@ proc mangledName(t: NimNode, parents: NimNode): string =
             echo "NO PARENT SYM!"
             echo "STACK: ", treeRepr(parents)
         result = "object[" & $ls & "]"
+    of nnkEnumTy:
+        result = "enum["
+        let ty = t[0]
+        for i in 0 ..< ty.len:
+            if i != 0: result &= ","
+            result &= $ty[i]
+        result &= "]"
     else:
         parents.push(t)
         result = mangledName(getType(t), parents)
@@ -215,6 +222,10 @@ when isMainModule:
 
     type GenericTupleWithClosures[T] = tuple[setter: proc(v: T), getter: proc(): T]
 
+    type SomeEnum = enum
+        someVal1
+        someVal2
+
     # Int should be castable to pointer
     const itop = canCastToPointer[int]()
     doAssert(itop)
@@ -242,6 +253,9 @@ when isMainModule:
         doAssert getMangledName(array[3, float]) == "array[range[0,2],float]"
         doAssert getMangledName(array[0..2, float]) == "array[range[0,2],float]"
         doAssert getMangledName(GenericTupleWithClosures[int]) == "tuple[proc[void,int],proc[int]]"
+
+        doAssert getMangledName(SomeEnum) == "enum[someVal1,someVal2]"
+        doAssert getMangledName(set[SomeEnum]) == "set[enum[someVal1,someVal2]]"
 
     block: # Test variant
         var v = newVariant(5)
