@@ -55,9 +55,9 @@ proc mangledName(t: NimNode, parents: NimNode): string =
     of nnkEnumTy:
         result = "enum["
         let ty = t[0]
-        for i in 0 ..< ty.len:
-            if i != 0: result &= ","
-            result &= $ty[i]
+        for i in 1 ..< t.len:
+            if i != 1: result &= ","
+            result &= $t[i]
         result &= "]"
     else:
         parents.push(t)
@@ -170,7 +170,7 @@ proc getProc*(v: Variant, T: typedesc[proc]): T =
             else:
                 let p = v.val
                 {.emit: """
-                `result`->ClPrc = `p`;
+                `result`->ClP_0 = `p`;
                 """.}
         else:
             result = cast[T](v.val)
