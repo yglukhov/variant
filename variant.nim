@@ -170,7 +170,7 @@ proc getProc*(v: Variant, T: typedesc[proc]): T =
             else:
                 let p = v.val
                 {.emit: """
-                `result`->ClP_0 = `p`;
+                *(void**)(&`result`->ClP_0) = `p`;
                 """.}
         else:
             result = cast[T](v.val)
