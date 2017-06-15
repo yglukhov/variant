@@ -130,7 +130,15 @@ proc newVariant*[T](val: T): Variant =
         var valCopy = val
         {.emit: "`result`.refval = `valCopy`;".}
     else:
-        when T is ref:
+        when T is proc {.closure.}:
+            let pt = T.new()
+            pt[] = val
+            result.isRef = true
+            result.refval = cast[ref RootObj](pt)
+        elif T is (proc):
+            esult.isRef = false
+            result.val = cast[pointer](val)
+        elif T is ref:
             # T is already a ref, so just store it as is
             result.isRef = true
             result.refval = cast[ref RootObj](val)
@@ -153,25 +161,6 @@ proc get*(v: Variant, T: typedesc): T =
     when defined(js):
         {.emit: "`result` = `v`.refval;".}
     else:
-        when T is ref:
-            # T is already a ref, so just store it as is
-            result = cast[T](v.refval)
-        elif canCastToPointer[T]():
-            result = castFromPointer[T](v.val)
-        else:
-            result = cast[ref T](v.refval)[]
-
-proc getProc*(v: Variant, T: typedesc[proc]): T =
-    ## Same as `get` but designed for proc types to better handle
-    ## closure vs non-closure interop. Still not fully implemented.
-    if getTypeId(T) != v.typeId:
-        when debugVariantTypes:
-            raise newException(Exception, "Wrong variant type: " & v.mangledName & ". Expected type: " & getMangledName(T))
-        else:
-            raise newException(Exception, "Wrong variant type. Compile with -d:variantDebugTypes switch to get more type information.")
-    when defined(js):
-        {.emit: "`result` = `v`.refval;".}
-    else:
         when T is proc {.closure.}:
             if v.isRef:
                 result = cast[ref T](v.refval)[]
@@ -180,8 +169,20 @@ proc getProc*(v: Variant, T: typedesc[proc]): T =
                 {.emit: """
                 *(void**)(&`result`->ClP_0) = `p`;
                 """.}
-        else:
+        elif T is (proc):
             result = cast[T](v.val)
+        elif T is ref:
+            # T is already a ref, so just store it as is
+            result = cast[T](v.refval)
+        elif canCastToPointer[T]():
+            result = castFromPointer[T](v.val)
+        else:
+            result = cast[ref T](v.refval)[]
+
+proc getProc*(v: Variant, T: typedesc[proc]): T {.deprecated, inline.} =
+    ## Same as `get` but designed for proc types to better handle
+    ## closure vs non-closure interop. Still not fully implemented.
+    v.get(T)
 
 template isEmpty*(v: Variant): bool = v.typeId == 0
 
@@ -339,9 +340,9 @@ when isMainModule:
         proc foon(b: int): int = b + 5
         proc fooc(b: int): int {.closure.} = b + 6
         var v = newVariant(foon)
-        doAssert(v.getProc(proc(b: int): int)(6) == 11)
+        doAssert(v.get(proc(b: int): int)(6) == 11)
         v = newVariant(fooc)
-        doAssert(v.getProc(proc(b: int): int)(6) == 12)
+        doAssert(v.get(proc(b: int): int)(6) == 12)
 
     block: # Test char
         let v = newVariant('a')
