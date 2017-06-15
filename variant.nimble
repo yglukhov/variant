@@ -14,3 +14,5 @@ task tests, "Run tests":
     exec "nim c -r -d:variantDebugTypes variant"
     exec "nim js -r variant"
     exec "nim js -r -d:variantDebugTypes variant"
+    exec "nim cpp -r variant"
+    exec "nim cpp -r -d:variantDebugTypes variant"

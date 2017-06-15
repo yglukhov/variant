@@ -114,6 +114,14 @@ template ofType*(v: Variant, t: typedesc): bool = v.typeId == getTypeId(t)
 
 proc newVariant*(): Variant = discard
 
+proc castFromPointer[T](p: pointer): T {.inline.} =
+    type Conv {.union.} = object
+        p: pointer
+        v: T
+    var v: Conv
+    v.p = p
+    return v.v
+
 proc newVariant*[T](val: T): Variant =
     result.typeId = getTypeId(T)
     when debugVariantTypes:
@@ -149,7 +157,7 @@ proc get*(v: Variant, T: typedesc): T =
             # T is already a ref, so just store it as is
             result = cast[T](v.refval)
         elif canCastToPointer[T]():
-            result = cast[T](v.val)
+            result = castFromPointer[T](v.val)
         else:
             result = cast[ref T](v.refval)[]
 
@@ -334,3 +342,7 @@ when isMainModule:
         doAssert(v.getProc(proc(b: int): int)(6) == 11)
         v = newVariant(fooc)
         doAssert(v.getProc(proc(b: int): int)(6) == 12)
+
+    block: # Test char
+        let v = newVariant('a')
+        doAssert(v.get(char) == 'a')
