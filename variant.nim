@@ -5,68 +5,117 @@ import strutils
 
 var typeIds {.compileTime.} = initTable[int, string]()
 
-template push(s, v: NimNode) = s.add(v)
+proc mangledNameAux(t: NimNode): string =
+    case t.typeKind
+    of ntyAlias:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkBracketExpr
+        assert impl.len == 1
+        result = mangledNameAux(impl[^1])
+    of ntyBool, ntyChar, ntyString, ntyCString,
+            ntyInt, ntyInt8, ntyInt16, ntyInt32, ntyInt64,
+            ntyFloat32, ntyFloat128,
+            ntyUInt, ntyUInt8, ntyUInt16, ntyUInt32, ntyUInt64:
+        result = $t
+    of ntyFloat64, ntyFloat:
+        result = "float"
+    of ntyObject:
+        assert(t.kind == nnkSym)
+        result = "object[" & $t & "]"
+    of ntyRef:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkRefTy
+        assert impl.len == 1
+        result = "ref[" & mangledNameAux(impl[^1]) & "]"
+    of ntyPtr:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkPtrTy
+        assert impl.len == 1
+        result = "ptr[" & mangledNameAux(impl[^1]) & "]"
+    of ntyDistinct:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkDistinctTy
+        assert impl.len == 1
 
-proc pop(s: NimNode): NimNode {.discardable.} =
-    result = s[^1]
-    s.del(s.len - 1)
+        assert t.kind == nnkSym
 
-proc getLastSym(s: NimNode): NimNode =
-    var i = s.len - 1
-    while i >= 0:
-        if s[i].kind == nnkSym: return s[i]
-        dec i
+        result = "distinct[" & $t & ":" & mangledNameAux(impl[^1]) & "]"
+    of ntySequence:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkBracketExpr
+        assert impl.len == 2
+        result = "seq[" & mangledNameAux(impl[^1]) & "]"
 
-proc mangledName(t: NimNode, parents: NimNode): string =
-    case t.kind
-    of nnkBracketExpr:
-        case $t[0]
-        of "seq", "ref", "ptr", "tuple", "array", "proc", "set":
-            result = $t[0] & "["
-            for i in 1 ..< t.len:
-                parents.push(t[i])
-                if i != 1: result &= ","
-                result &= mangledName(getType(t[i]), parents)
-                parents.pop()
-            result &= "]"
-        of "distinct":
-            parents.push(t[1])
-            result = "distinct[" & mangledName(getType(t[1]), parents) & ":" & t.lineinfo & "]"
-            parents.pop()
-        of "range":
-            result = "range[" & $t[1].intVal & "," & $t[2].intVal & "]"
-        else:
-            echo treeRepr(t)
-            assert(false)
-    of nnkSym:
-        let tt = getType(t)
-        if tt.kind == nnkSym and $tt == $t:
-            result = $t
-        else:
-            parents.push(tt)
-            result = mangledName(tt, parents)
-            parents.pop()
-    of nnkObjectTy:
-        let ls = getLastSym(parents)
-        if ls.isNil:
-            echo "NO PARENT SYM!"
-            echo "STACK: ", treeRepr(parents)
-        result = "object[" & $ls & "]"
-    of nnkEnumTy:
-        result = "enum["
-        let ty = t[0]
-        for i in 1 ..< t.len:
-            if i != 1: result &= ","
-            result &= $t[i]
+    of ntySet:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkBracketExpr
+        assert impl.len == 2
+        result = "set[" & mangledNameAux(impl[^1]) & "]"
+
+    of ntyArray:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkBracketExpr
+        assert impl.len == 3
+        let rng = impl[1]
+        result = "array[" & $rng[1].intVal & ".." & $rng[2].intVal & "," & mangledNameAux(impl[^1]) & "]"
+    of ntyGenericInst:
+        # TODO: Figure out how to get rid of `getType`. Related nim issue: #5788
+        result = mangledNameAux(getType(t))
+
+    of ntyTuple:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkTupleTy
+
+        result = "tuple["
+        var i = 0
+        for identDefs in impl:
+            case identDefs.kind
+            of nnkIdentDefs:
+                let typ = mangledNameAux(identDefs[^2])
+                for j in 0 ..< identDefs.len - 2:
+                    if i > 0: result &= ","
+                    result &= typ
+                    inc i
+            else:
+                if i > 0: result &= ","
+                result &= mangledNameAux(identDefs)
+                inc i
+
         result &= "]"
+
+    of ntyProc:
+        let impl = t.getTypeImpl()
+        assert impl.kind == nnkProcTy
+
+        let params = impl[0]
+
+        result = "proc["
+        if params[0].kind == nnkEmpty:
+            result &= "void"
+        else:
+            result &= mangledNameAux(params[0])
+
+        for p in 1 ..< params.len:
+            let typ = mangledNameAux(params[p][^2])
+            for j in 0 ..< params[p].len - 2:
+                result &= ","
+                result &= typ
+        result &= "]"
+    of ntyEnum:
+        let inst = t.getTypeInst()
+        assert inst.kind == nnkSym
+        result = "enum[" & $inst & "]"
+
     else:
-        parents.push(t)
-        result = mangledName(getType(t), parents)
-        parents.pop()
+        echo "kind: ", t.typeKind
+        echo "t: ", treeRepr(t)
+        echo "getTypeInst: ", treeRepr(t.getTypeInst())
+        echo "getTypeImpl: ", treeRepr(t.getTypeImpl())
+        assert(false)
+
 
 proc mangledName(t: NimNode): string =
-    var parents = newStmtList(t)
-    mangledName(getType(t)[1], parents)
+    mangledNameAux(getTypeImpl(t)[1])
 
 macro getMangledName(t: typed): string = mangledName(t)
 
@@ -188,7 +237,7 @@ template isEmpty*(v: Variant): bool = v.typeId == 0
 
 template getTn(v: Variant): TypeId = v.typeId
 
-macro variantMatch*(body: untyped): stmt =
+macro variantMatch*(body: untyped): untyped =
     expectKind(body, nnkCaseStmt)
     var defaultUnpackSym : NimNode
     var variantNode = body[0]
@@ -222,19 +271,6 @@ macro variantMatch*(body: untyped): stmt =
         else:
             error "Unexpected node type in variant case: " & c.lineinfo
 
-macro match*(v: Variant, body: untyped): stmt {.deprecated.} =
-    result = newNimNode(nnkCaseStmt)
-    result.add(newCall(bindSym "getTn", v))
-    for c in body:
-        if c.kind == nnkCommand:
-            result.add(newNimNode(nnkOfBranch).add(newCall(bindSym "getTypeId", c[1][1]),
-                newStmtList(
-                    newLetStmt(c[1][2], newCall(bindSym "get", v, c[1][1])),
-                    c[2]))
-                )
-        elif c.kind == nnkCall:
-            result.add(newNimNode(nnkElse).add(c[1]))
-
 when isMainModule:
     type Obj = object
         a: int
@@ -253,9 +289,11 @@ when isMainModule:
 
     type GenericTupleWithClosures[T] = tuple[setter: proc(v: T), getter: proc(): T]
 
-    type SomeEnum = enum
+    type SomeEnum* = enum
         someVal1
         someVal2
+
+    type ParTuple = (int, float)
 
     # Int should be castable to pointer
     const itop = canCastToPointer[int]()
@@ -266,14 +304,13 @@ when isMainModule:
 
     block: # Test mangling
         doAssert getMangledName(int) == "int"
-        doAssert getMangledName(DistinctInt).startsWith("distinct[int:")
-        doAssert getMangledName(DistinctInt2).startsWith("distinct[int:")
-        #doAssert getMangledName(DistinctInt) != getMangledName(DistinctInt2) # Depends on Nim pr 3667
+        doAssert getMangledName(DistinctInt) == "distinct[DistinctInt:int]"
+        doAssert getMangledName(DistinctInt2) == "distinct[DistinctInt2:int]"
         doAssert getMangledName(float) == "float"
         doAssert getMangledName(seq[int]) == "seq[int]"
         doAssert getMangledName(SeqOfInt) == "seq[int]"
         doAssert getMangledName(ptr int) == "ptr[int]"
-        doAssert getMangledName(IntPtr).startsWith("distinct[ptr[int]:")
+        doAssert getMangledName(IntPtr) == "distinct[IntPtr:ptr[int]]"
         doAssert getMangledName(IntPtr2) == getMangledName(IntPtr)
         doAssert getMangledName(GenericTest[float]) == "seq[float]"
         doAssert getMangledName(ConcreteTest) == "seq[int]"
@@ -281,12 +318,15 @@ when isMainModule:
         doAssert getMangledName(tuple[x: int, y: float]) == "tuple[int,float]"
         doAssert getMangledName(Obj) == "object[Obj]"
         doAssert getMangledName(RefObj) == "ref[object[RefObj:ObjectType]]"
-        doAssert getMangledName(array[3, float]) == "array[range[0,2],float]"
-        doAssert getMangledName(array[0..2, float]) == "array[range[0,2],float]"
+        doAssert getMangledName(array[3, float]) == "array[0..2,float]"
+        doAssert getMangledName(array[0..2, float]) == "array[0..2,float]"
         doAssert getMangledName(GenericTupleWithClosures[int]) == "tuple[proc[void,int],proc[int]]"
 
-        doAssert getMangledName(SomeEnum) == "enum[someVal1,someVal2]"
-        doAssert getMangledName(set[SomeEnum]) == "set[enum[someVal1,someVal2]]"
+        doAssert getMangledName(SomeEnum) == "enum[SomeEnum]"
+        doAssert getMangledName(set[SomeEnum]) == "set[enum[SomeEnum]]"
+
+        doAssert getMangledName(ParTuple) == "tuple[int,float]"
+
 
     block: # Test variant
         var v = newVariant(5)
