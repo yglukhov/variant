@@ -1,13 +1,9 @@
 # Package
 
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "Yuriy Glukhov"
 description   = "Variant type and type matching"
 license       = "MIT"
-
-# Dependencies
-
-requires "nim >= 0.12.1"
 
 task tests, "Run tests":
     exec "nim c -r variant"
