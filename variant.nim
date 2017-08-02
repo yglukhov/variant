@@ -64,7 +64,7 @@ proc mangledNameAux(t: NimNode): string =
 
     of ntyTuple:
         let impl = t.getTypeImpl()
-        assert impl.kind == nnkTupleTy
+        impl.expectKind({nnkTupleTy, nnkPar})
 
         result = "tuple["
         var i = 0
