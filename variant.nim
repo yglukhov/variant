@@ -9,9 +9,13 @@ proc mangledNameAux(t: NimNode): string =
     case t.typeKind
     of ntyAlias:
         let impl = t.getTypeImpl()
-        assert impl.kind == nnkBracketExpr
-        assert impl.len == 1
-        result = mangledNameAux(impl[^1])
+        if impl.kind == nnkSym:
+            result = mangledNameAux(impl)
+        else:
+            # Old Nim support. May be removed eventually.
+            assert impl.kind == nnkBracketExpr
+            assert impl.len == 1
+            result = mangledNameAux(impl[^1])
     of ntyBool, ntyChar, ntyString, ntyCString,
             ntyInt, ntyInt8, ntyInt16, ntyInt32, ntyInt64,
             ntyFloat32, ntyFloat128,
