@@ -8,14 +8,7 @@ var typeIds {.compileTime.} = initTable[int, string]()
 proc mangledNameAux(t: NimNode): string =
     case t.typeKind
     of ntyAlias:
-        let impl = t.getTypeImpl()
-        if impl.kind == nnkSym:
-            result = mangledNameAux(impl)
-        else:
-            # Old Nim support. May be removed eventually.
-            assert impl.kind == nnkBracketExpr
-            assert impl.len == 1
-            result = mangledNameAux(impl[^1])
+        result = mangledNameAux(t.getTypeImpl())
     of ntyBool, ntyChar, ntyString, ntyCString,
             ntyInt, ntyInt8, ntyInt16, ntyInt32, ntyInt64,
             ntyFloat32, ntyFloat128,
@@ -41,9 +34,8 @@ proc mangledNameAux(t: NimNode): string =
         assert impl.kind == nnkDistinctTy
         assert impl.len == 1
 
-        assert t.kind == nnkSym
+        result = "distinct[" & mangledNameAux(impl[^1]) & "]"
 
-        result = "distinct[" & $t & ":" & mangledNameAux(impl[^1]) & "]"
     of ntySequence:
         let impl = t.getTypeImpl()
         assert impl.kind == nnkBracketExpr
@@ -276,6 +268,8 @@ macro variantMatch*(body: untyped): untyped =
             error "Unexpected node type in variant case: " & c.lineinfo
 
 when isMainModule:
+    import unittest
+
     type Obj = object
         a: int
 
@@ -302,92 +296,94 @@ when isMainModule:
     # Int should be castable to pointer
     const itop = canCastToPointer[int]()
     doAssert(itop)
-    # Float should be castable to pointer
-    const ftop = canCastToPointer[int]()
+    # float32 should be castable to pointer
+    const ftop = canCastToPointer[float32]()
     doAssert(ftop)
 
-    block: # Test mangling
-        doAssert getMangledName(int) == "int"
-        doAssert getMangledName(DistinctInt) == "distinct[DistinctInt:int]"
-        doAssert getMangledName(DistinctInt2) == "distinct[DistinctInt2:int]"
-        doAssert getMangledName(float) == "float"
-        doAssert getMangledName(seq[int]) == "seq[int]"
-        doAssert getMangledName(SeqOfInt) == "seq[int]"
-        doAssert getMangledName(ptr int) == "ptr[int]"
-        doAssert getMangledName(IntPtr) == "distinct[IntPtr:ptr[int]]"
-        doAssert getMangledName(IntPtr2) == getMangledName(IntPtr)
-        doAssert getMangledName(GenericTest[float]) == "seq[float]"
-        doAssert getMangledName(ConcreteTest) == "seq[int]"
-        doAssert getMangledName(tuple[x, y: int]) == "tuple[int,int]"
-        doAssert getMangledName(tuple[x: int, y: float]) == "tuple[int,float]"
-        doAssert getMangledName(Obj) == "object[Obj]"
-        doAssert getMangledName(RefObj) == "ref[object[RefObj:ObjectType]]"
-        doAssert getMangledName(array[3, float]) == "array[0..2,float]"
-        doAssert getMangledName(array[0..2, float]) == "array[0..2,float]"
-        doAssert getMangledName(GenericTupleWithClosures[int]) == "tuple[proc[void,int],proc[int]]"
+    suite "Variant": # Test mangling
+        test "Mangling":
+            check getMangledName(int) == "int"
+            check getMangledName(DistinctInt) == "distinct[int]"
+            check getMangledName(DistinctInt2) == "distinct[int]"
+            check getMangledName(float) == "float"
+            check getMangledName(seq[int]) == "seq[int]"
+            check getMangledName(SeqOfInt) == "seq[int]"
+            check getMangledName(ptr int) == "ptr[int]"
+            check getMangledName(IntPtr) == "distinct[ptr[int]]"
+            check getMangledName(IntPtr2) == getMangledName(IntPtr)
+            check getMangledName(GenericTest[float]) == "seq[float]"
+            check getMangledName(ConcreteTest) == "seq[int]"
+            check getMangledName(tuple[x, y: int]) == "tuple[int,int]"
+            check getMangledName(tuple[x: int, y: float]) == "tuple[int,float]"
+            check getMangledName(Obj) == "object[Obj]"
+            check getMangledName(RefObj) == "ref[object[RefObj:ObjectType]]"
+            check getMangledName(array[3, float]) == "array[0..2,float]"
+            check getMangledName(array[0..2, float]) == "array[0..2,float]"
+            check getMangledName(GenericTupleWithClosures[int]) == "tuple[proc[void,int],proc[int]]"
 
-        doAssert getMangledName(SomeEnum) == "enum[SomeEnum]"
-        doAssert getMangledName(set[SomeEnum]) == "set[enum[SomeEnum]]"
+            check getMangledName(SomeEnum) == "enum[SomeEnum]"
+            check getMangledName(set[SomeEnum]) == "set[enum[SomeEnum]]"
 
-        doAssert getMangledName(ParTuple) == "tuple[int,float]"
+            check getMangledName(ParTuple) == "tuple[int,float]"
 
 
-    block: # Test variant
-        var v = newVariant(5)
-        doAssert v.ofType(int)
-        doAssert v.get(int) == 5
-        when debugVariantTypes:
-            doAssert v.mangledName == "int"
-        v = newVariant(3.0)
-        doAssert v.ofType(float)
-        doAssert v.get(float) == 3.0
-        when debugVariantTypes:
-            doAssert v.mangledName == "float"
-        v = newVariant(@[1, 2, 3])
-        doAssert v.ofType(seq[int])
-        doAssert v.get(seq[int])[1] == 2
-        when debugVariantTypes:
-            doAssert v.mangledName == "seq[int]"
+        test "Variant":
+            var v = newVariant(5)
+            check v.ofType(int)
+            check v.get(int) == 5
+            when debugVariantTypes:
+                check v.mangledName == "int"
+            v = newVariant(3.0)
+            check v.ofType(float)
+            check v.get(float) == 3.0
+            when debugVariantTypes:
+                check v.mangledName == "float"
+            v = newVariant(@[1, 2, 3])
+            check v.ofType(seq[int])
+            check v.get(seq[int])[1] == 2
+            when debugVariantTypes:
+                check v.mangledName == "seq[int]"
 
-        v = newVariant(RefObj.new())
-        when debugVariantTypes:
-            doAssert v.mangledName == getMangledName(RefObj)
+            v = newVariant(RefObj.new())
+            when debugVariantTypes:
+                check v.mangledName == getMangledName(RefObj)
 
-    block: # Test match
-        var v = newVariant(@[1, 2, 3])
-        doAssert v.ofType(seq[int])
-        variantMatch case v:
-            of int as i: doAssert(false and i == 0)
-            of seq[int] as s: doAssert s[1] == 2
-            else: doAssert false
+        test "Match":
+            var v = newVariant(@[1, 2, 3])
+            check v.ofType(seq[int])
+            variantMatch case v:
+                of int as i: check(false and i == 0)
+                of seq[int] as s: check s[1] == 2
+                else: check false
 
-        variantMatch case v as u
-        of int: doAssert(false and u == 0)
-        of seq[int]: doAssert(u[1] == 2)
-        else: doAssert false
+            variantMatch case v as u
+            of int: check(false and u == 0)
+            of seq[int]: check(u[1] == 2)
+            else: fail()
 
-        v = newVariant(5.3)
-        doAssert v.ofType(float)
-        variantMatch case v:
-            of int as i: doAssert(false and i == 0)
-            of float as f: doAssert f == 5.3
-            else: doAssert false
+            v = newVariant(5.3)
+            check v.ofType(float)
+            variantMatch case v:
+                of int as i: check(false and i == 0)
+                of float as f: check f == 5.3
+                else: fail()
 
-    block: # Test gneric types
-        type SomeGeneric[T] = tuple[a: T]
-        var sng : SomeGeneric[int]
-        sng.a = 5
-        let v = newVariant(sng)
-        doAssert(v.get(type(sng)).a == 5)
+        test "Generic types":
+            type SomeGeneric[T] = tuple[a: T]
+            var sng : SomeGeneric[int]
+            sng.a = 5
+            let v = newVariant(sng)
+            check(v.get(type(sng)).a == 5)
 
-    block: # Test closures
-        proc foon(b: int): int = b + 5
-        proc fooc(b: int): int {.closure.} = b + 6
-        var v = newVariant(foon)
-        doAssert(v.get(proc(b: int): int)(6) == 11)
-        v = newVariant(fooc)
-        doAssert(v.get(proc(b: int): int)(6) == 12)
+        test "Closures":
+            proc foon(b: int): int = b + 5
+            proc fooc(b: int): int {.closure.} = b + 6
+            var v = newVariant(foon)
+            check(v.get(proc(b: int): int)(6) == 11)
+            v = newVariant(fooc)
+            check(v.get(proc(b: int): int)(6) == 12)
 
-    block: # Test char
-        let v = newVariant('a')
-        doAssert(v.get(char) == 'a')
+        test "Char":
+            let v = newVariant('a')
+            check(v.get(char) == 'a')
+
