@@ -8,7 +8,10 @@ var typeIds {.compileTime.} = initTable[int, string]()
 proc mangledNameAux(t: NimNode): string =
     case t.typeKind
     of ntyAlias:
-        result = mangledNameAux(t.getTypeImpl())
+        assert(t.kind == nnkSym)
+        let impl = t.symbol.getImpl()
+        assert(impl.kind == nnkTypeDef)
+        result = mangledNameAux(impl[^1])
     of ntyBool, ntyChar, ntyString, ntyCString,
             ntyInt, ntyInt8, ntyInt16, ntyInt32, ntyInt64,
             ntyFloat32, ntyFloat128,
