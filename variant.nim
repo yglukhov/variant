@@ -63,7 +63,9 @@ proc mangledNameAux(t: NimNode): string =
 
     of ntyTuple:
         let impl = t.getTypeImpl()
-        impl.expectKind({nnkTupleTy, nnkPar, nnkTupleConstr})
+        # TODO: Uncomment the following line when nim 0.19 is out,
+        # nnkTupleConstr is not defined in older nim.
+        # impl.expectKind({nnkTupleTy, nnkPar, nnkTupleConstr})
 
         result = "tuple["
         var i = 0
