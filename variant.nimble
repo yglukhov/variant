@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.8"
+version       = "0.2.9"
 author        = "Yuriy Glukhov"
 description   = "Variant type and type matching"
 license       = "MIT"
