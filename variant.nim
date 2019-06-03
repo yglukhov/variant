@@ -174,9 +174,6 @@ proc castFromPointer[T](p: pointer): T {.inline.} =
     return v.v
 
 proc newVariant*[T](val: T): Variant =
-    result.typeId = getTypeId(T)
-    when debugVariantTypes:
-        result.mangledName = getMangledName(T)
     when defined(js):
         var valCopy = val
         {.emit: "`result`.refval = `valCopy`;".}
@@ -184,24 +181,23 @@ proc newVariant*[T](val: T): Variant =
         when T is proc {.closure.}:
             let pt = T.new()
             pt[] = val
-            result.isRef = true
-            result.refval = cast[ref RootObj](pt)
+            result = Variant(isRef: true, refval: cast[ref RootObj](pt))
         elif T is (proc):
-            esult.isRef = false
-            result.val = cast[pointer](val)
+            result = Variant(isRef: false, val: cast[pointer](val))
         elif T is ref:
             # T is already a ref, so just store it as is
-            result.isRef = true
-            result.refval = cast[ref RootObj](val)
+            result = Variant(isRef: true, refval: cast[ref RootObj](val))
         elif canCastToPointer[T]():
             # T is good enough to be stored inside a pointer value. E.g.: ints, floats, enums, etc.
-            result.isRef = false
-            result.val = cast[pointer](val)
+            result = Variant(isRef: false, val: cast[pointer](val))
         else:
             let pt = T.new()
             pt[] = val
-            result.isRef = true
-            result.refval = cast[ref RootObj](pt)
+            result = Variant(isRef: true, refval: cast[ref RootObj](pt))
+
+    result.typeId = getTypeId(T)
+    when debugVariantTypes:
+        result.mangledName = getMangledName(T)
 
 proc get*(v: Variant, T: typedesc): T =
     if getTypeId(T) != v.typeId:
