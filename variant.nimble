@@ -1,11 +1,11 @@
 # Package
 
-version       = "0.2.9"
+version       = "0.2.10"
 author        = "Yuriy Glukhov"
 description   = "Variant type and type matching"
 license       = "MIT"
 
-task tests, "Run tests":
+task test, "Run tests":
     exec "nim c -r variant"
     exec "nim c -r -d:variantDebugTypes variant"
     exec "nim js -r variant"
