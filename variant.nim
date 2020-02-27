@@ -1,7 +1,4 @@
-import macros
-import tables
-import hashes
-import strutils
+import macros, tables, hashes, strutils
 
 var typeIds {.compileTime.} = initTable[int, string]()
 
@@ -138,13 +135,8 @@ macro getTypeId*(t: typed): TypeId =
 const debugVariantTypes = defined(variantDebugTypes)
 
 proc canCastToPointer[T](): bool {.compileTime.} =
-    when compiles(
-        proc() =
-            const s = sizeof(T)):
-        return sizeof(T) <= sizeof(pointer) and compiles(
-            proc() =
-                var val: T
-                discard cast[pointer](val))
+    when compiles(static(sizeof(T))):
+        return sizeof(T) <= sizeof(pointer) and compiles(cast[pointer](default(T)))
     else:
         return false
 
