@@ -140,18 +140,27 @@ proc canCastToPointer[T](): bool {.compileTime.} =
     else:
         return false
 
-type Variant* = object
-    typeId*: TypeId
-    when defined(js):
-        refval {.exportc.}: ref RootObj
-    else:
-        case isRef: bool
-        of true:
-            refval: ref RootObj
-        of false:
-            val: pointer
-    when debugVariantTypes:
-        mangledName*: string
+when defined(gcDestructors):
+    type
+        Variant* = ref object {.inheritable.}
+            typeId*: TypeId
+            when debugVariantTypes:
+                mangledName*: string
+        VariantConcrete[T] = ref object of Variant
+            val: T
+else:
+    type Variant* = object
+        typeId*: TypeId
+        when defined(js):
+            refval {.exportc.}: ref RootObj
+        else:
+            case isRef: bool
+            of true:
+                refval: ref RootObj
+            of false:
+                val: pointer
+        when debugVariantTypes:
+            mangledName*: string
 
 template ofType*(v: Variant, t: typedesc): bool = v.typeId == getTypeId(t)
 
@@ -166,7 +175,9 @@ proc castFromPointer[T](p: pointer): T {.inline.} =
     return v.v
 
 proc newVariant*[T](val: T): Variant =
-    when defined(js):
+    when defined(gcDestructors):
+        result = VariantConcrete[T](val: val)
+    elif defined(js):
         var valCopy = val
         {.emit: "`result`.refval = `valCopy`;".}
     else:
@@ -192,12 +203,18 @@ proc newVariant*[T](val: T): Variant =
         result.mangledName = getMangledName(T)
 
 proc get*(v: Variant, T: typedesc): T =
+    when defined(gcDestructors):
+        if v.isNil:
+            raise newException(Exception, "Wrong variant type: " & "nil" & ". Expected type: " & getMangledName(T))
+
     if getTypeId(T) != v.typeId:
         when debugVariantTypes:
             raise newException(Exception, "Wrong variant type: " & v.mangledName & ". Expected type: " & getMangledName(T))
         else:
             raise newException(Exception, "Wrong variant type. Compile with -d:variantDebugTypes switch to get more type information.")
-    when defined(js):
+    when defined(gcDestructors):
+        result = VariantConcrete[T](v).val
+    elif defined(js):
         {.emit: "`result` = `v`.refval;".}
     else:
         when T is proc {.closure.}:
@@ -223,9 +240,20 @@ proc getProc*(v: Variant, T: typedesc[proc]): T {.deprecated, inline.} =
     ## closure vs non-closure interop. Still not fully implemented.
     v.get(T)
 
-template isEmpty*(v: Variant): bool = v.typeId == 0
+template isEmpty*(v: Variant): bool =
+    when defined(gcDestructors):
+        v.isNil
+    else:
+        v.typeId == 0
 
-template getTn(v: Variant): TypeId = v.typeId
+template getTn(v: Variant): TypeId =
+    when defined(gcDestructors):
+        if v.isNil:
+            TypeId(0)
+        else:
+            v.typeId
+    else:
+        v.typeId
 
 macro variantMatch*(body: untyped): untyped =
     expectKind(body, nnkCaseStmt)
