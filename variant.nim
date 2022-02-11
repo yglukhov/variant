@@ -17,8 +17,25 @@ proc mangledNameAux(t: NimNode): string =
     of ntyFloat64, ntyFloat:
         result = "float"
     of ntyObject:
-        assert(t.kind == nnkSym)
-        result = "object[" & $t & "]"
+        let impl = t.getTypeImpl()
+        
+        result = "object["
+        var i = 0
+        for identDefs in impl:
+            case identDefs.kind
+            of nnkIdentDefs:
+                let typ = mangledNameAux(identDefs[^2])
+                for j in 0 ..< identDefs.len - 2:
+                    if i > 0: result &= ","
+                    result &= typ
+                    inc i
+            else:
+                if i > 0: result &= ","
+                result &= mangledNameAux(identDefs)
+                inc i
+
+        result &= "]"
+
     of ntyRef:
         let impl = t.getTypeImpl()
         assert impl.kind == nnkRefTy
@@ -103,6 +120,9 @@ proc mangledNameAux(t: NimNode): string =
         let inst = t.getTypeInst()
         assert inst.kind == nnkSym
         result = "enum[" & $inst & "]"
+        
+    of ntyNone:
+        result = "none"
 
     else:
         echo "kind: ", t.typeKind
