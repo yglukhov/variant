@@ -1,4 +1,4 @@
-# variant [![Build Status](https://travis-ci.org/yglukhov/variant.svg?branch=master)](https://travis-ci.org/yglukhov/variant) [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble_js.png)](https://github.com/yglukhov/nimble-tag)
+# variant [![Build Status](https://github.com/yglukhov/variant/workflows/CI/badge.svg?branch=master)](https://github.com/yglukhov/variant/actions?query=branch%3Amaster) [![nimble](https://raw.githubusercontent.com/yglukhov/nimble-tag/master/nimble_js.png)](https://github.com/yglukhov/nimble-tag)
 Variant type and type matching for Nim
 
 ```nim
