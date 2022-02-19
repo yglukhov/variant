@@ -17,8 +17,10 @@ proc mangledNameAux(t: NimNode): string =
     of ntyFloat64, ntyFloat:
         result = "float"
     of ntyObject:
-        assert(t.kind == nnkSym)
-        result = "object[" & $t & "]"
+        result = "object["
+        result &= t.getTypeInst.repr
+        result &= "]"
+
     of ntyRef:
         let impl = t.getTypeImpl()
         assert impl.kind == nnkRefTy
@@ -103,6 +105,9 @@ proc mangledNameAux(t: NimNode): string =
         let inst = t.getTypeInst()
         assert inst.kind == nnkSym
         result = "enum[" & $inst & "]"
+        
+    of ntyNone:
+        result = "none"
 
     else:
         echo "kind: ", t.typeKind
