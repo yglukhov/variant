@@ -18,7 +18,7 @@ proc mangledNameAux(t: NimNode): string =
         result = "float"
     of ntyObject:
         result = "object["
-        result &= t.strVal
+        result &= t.getTypeInst.repr
         result &= "]"
 
     of ntyRef:
