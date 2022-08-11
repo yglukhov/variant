@@ -147,7 +147,7 @@ proc canCastToPointer[T](): bool {.compileTime.} =
 
 when defined(gcDestructors):
     type
-        Variant* = ref object {.inheritable.}
+        Variant* {.inheritable.} = ref object
             typeId*: TypeId
             when debugVariantTypes:
                 mangledName*: string
