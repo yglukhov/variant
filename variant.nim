@@ -218,7 +218,7 @@ proc get*(v: Variant, T: typedesc): T =
         else:
             raise newException(Exception, "Wrong variant type. Compile with -d:variantDebugTypes switch to get more type information.")
     when defined(gcDestructors):
-        result = VariantConcrete[T](v).val
+        result = cast[VariantConcrete[T]](v).val
     elif defined(js):
         {.emit: "`result` = `v`.refval;".}
     else:
