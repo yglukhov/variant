@@ -142,6 +142,9 @@ proc newVariant*[T](val: T): Variant =
   when debugVariantTypes:
     result.mangledName = getMangledName(T)
 
+proc isEmpty*(v: Variant): bool =
+  result = v == nil or v.typeId == 0
+
 proc get*(v: Variant, T: typedesc): T =
   if v.isNil:
     raise newException(Exception, "Wrong variant type: " & "nil" & ". Expected type: " & getMangledName(T))
