@@ -3,7 +3,10 @@ import typeids/[first, second, shared]
 
 type SharedAlias = Shared
 
-doAssert first.sameNameId != second.sameNameId
+# Neither sibling imports the other: replaying a shared counter cannot
+# coordinate their allocations, even when IC builds them one at a time.
+doAssert first.sameNameId != second.sameNameId,
+  "sibling modules reused type ID " & $first.sameNameId
 doAssert first.errorId != second.boolId
 doAssert first.sharedId == second.sharedId
 doAssert first.sharedId == getTypeId(SharedAlias)

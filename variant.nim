@@ -116,6 +116,8 @@ proc typeKey(t: NimNode): string =
 
 macro cachedTypeId(t: typedesc): untyped =
   # Independent IC modules must agree without sharing an allocation counter.
+  # CacheCounter replays imported increments, but sibling modules can still
+  # allocate the same next value before either imports the other.
   # Keep zero reserved for an empty variant, and reject hash collisions through
   # the macro cache, whose entries are replayed when importing cached modules.
   let signature = typeKey(t)
