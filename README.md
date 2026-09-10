@@ -1,4 +1,4 @@
-# variant [![Build Status](https://github.com/yglukhov/variant/workflows/CI/badge.svg?branch=master)](https://github.com/yglukhov/variant/actions?query=branch%3Amaster) [![nimble](https://img.shields.io/badge/nimble-black?logo=nim&style=flat&labelColor=171921&color=%23f3d400)](https://nimble.directory/pkg/variant)
+# variant [![CI](https://github.com/yglukhov/variant/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/yglukhov/variant/actions/workflows/test.yml) [![nimble](https://img.shields.io/badge/nimble-black?logo=nim&style=flat&labelColor=171921&color=%23f3d400)](https://nimble.directory/pkg/variant)
 Variant type and type matching for Nim
 
 ```nim
