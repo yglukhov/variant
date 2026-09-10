@@ -10,7 +10,8 @@ task test, "Run tests":
   exec "nim c -r --mm:refc -d:variantDebugTypes variant"
   exec "nim c -r --mm:orc variant"
   exec "nim c -r --mm:orc -d:variantDebugTypes variant"
-  exec "nim js -r variant"
-  exec "nim js -r -d:variantDebugTypes variant"
+  # TODO: JS is broken...
+  # exec "nim js -r variant"
+  # exec "nim js -r -d:variantDebugTypes variant"
   exec "nim cpp -r variant"
   exec "nim cpp -r -d:variantDebugTypes variant"

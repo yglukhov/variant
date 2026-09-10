@@ -1,6 +1,11 @@
 name: CI
 
-on: push
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+
 jobs:
   Test:
     if: |
@@ -14,12 +19,14 @@ jobs:
     name: ${{ matrix.os }}-${{ matrix.nim-channel }}
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Setup nim
-      uses: jiro4989/setup-nim-action@v1
+      uses: jiro4989/setup-nim-action@v2
       with:
         nim-version: ${{ matrix.nim-channel }}
+        use-nightlies: true
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Test
       shell: bash
