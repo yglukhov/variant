@@ -33,3 +33,17 @@ Will output:
 ```
 u is seq[int]: @[1, 2, 3]
 ```
+
+Type IDs are opaque, nonzero values derived from type identity. They are not
+sequential and should not be persisted across compiler versions or builds.
+The macro cache records type identities so incremental compilation can reuse
+modules without resetting a global type-ID counter. A `CacheCounter` alone is
+not sufficient: it replays increments from imported modules, but independently
+compiled sibling modules can still allocate the same ID for unrelated types.
+
+To test cross-module type IDs with a compiler that supports `nim ic`, run:
+
+```sh
+nim ic -f -r tests/ttypeids.nim
+nim ic -r tests/ttypeids.nim
+```

@@ -15,3 +15,10 @@ task test, "Run tests":
   # exec "nim js -r -d:variantDebugTypes variant"
   exec "nim cpp -r variant"
   exec "nim cpp -r -d:variantDebugTypes variant"
+  exec "nim c -r tests/ttypeids"
+  exec "nim js -r tests/ttypeids"
+  exec "nim cpp -r tests/ttypeids"
+
+task testIC, "Run incremental compilation regression (requires nim ic)":
+  exec "nim ic -f -r tests/ttypeids"
+  exec "nim ic -r tests/ttypeids"
